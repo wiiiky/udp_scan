@@ -33,7 +33,7 @@ struct scaninfo {
 	useconds_t interval;		/* 每个udp数据包的发送间隔(以毫秒计)，不建议设为0，可能导致发送数据包的丢失,默认为500000us(500ms) */
 	unsigned int attempts;		/* 数据包发送次数 */
 	unsigned char *status;		/* 端口状态,动态分配空间 */
-	unsigned int wait;			/* UDP数据包发送结束后,等待多少秒才退出,默认为1+interval/1000000*10 */
+	unsigned int wait;			/* UDP数据包发送结束后,等待多少秒才退出,默认为interval/1000000.0*(end-start+1) */
 };
 
 #define MAX_PAYLOAD	128
@@ -41,7 +41,7 @@ struct scaninfo {
 
 
 #define BUFSIZE	4096
-void *sender(void *);			/* 发送UDP数据包线程 */
+void sender(struct scaninfo *);	/* 发送UDP数据包线程 */
 void *receiver(void *);			/* 接受ICMP数据包线程 */
 
 /* 解析命令参数 */

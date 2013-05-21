@@ -1,10 +1,10 @@
 #include "udp_scan.h"
 
 /* 发送udp数据包的线程 */
-void *sender(void *arg)
+void sender(struct scaninfo *arg)
 {
 	if (arg == NULL)
-		return NULL;
+		return;
 
 	int sockfd;
 	unsigned short i, start, end;
@@ -17,36 +17,37 @@ void *sender(void *arg)
 
 	if ((sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
 		perror("socket(AF_INET,SOCK_DGRAM,0) error");
-		return NULL;
+		return;
 	}
 	memset(&servaddr, 0, sizeof(servaddr));
 	servaddr.sin_family = AF_INET;
 	memcpy(&servaddr.sin_addr, &ip->addr, sizeof(servaddr.sin_addr));
 	len = strlen(ip->data);
 	/* 发送数据包,每次发送间隔5s */
+	setbuf(stdout, NULL);		/* 标准输出无缓冲 */
 	for (total = 1; total <= ip->attempts; total++) {
-		printf("sending UDP packets(%d)...\n", total);
+		printf("sending UDP packets(%d)", total);
 		for (i = start; i <= end; i++) {
 			servaddr.sin_port = htons(i);
 			if (sendto
 				(sockfd, ip->data, len, 0, (struct sockaddr *) &servaddr,
 				 sizeof(servaddr)) < 0) {
 				perror("sendto error");
-				return NULL;
+				return;
 			}
 			usleep(ip->interval);
+			printf(".");
 		}
-		printf("complete sending(%d)\n", total);
+		printf("\ncomplete sending(%d)\n", total);
 		if (total == ip->attempts)
 			break;
-		for (i = 1; i <= 5; i++) {
-			printf("...");
-			fflush(NULL);
-			sleep(1);
+		for (i = 1; i <= 20; i++) {
+			printf(".");
+			usleep(100000);
 		}
 		printf("\n");
 	}
-	return NULL;
+	return;
 }
 
 #define ICMP_LEN 8
@@ -202,7 +203,8 @@ void parse_scanpara(int argc, char *argv[], struct scaninfo *info)
 	}
 
 	if (info->wait == 0)
-		info->wait = 1 + info->interval / 1000000.0 * 10;
+		info->wait =
+			info->interval / 1000000.0 * (info->end - info->start + 1);
 	info->status =
 		(unsigned char *) malloc((info->end - info->start + 1) *
 								 sizeof(unsigned char));

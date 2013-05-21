@@ -10,7 +10,7 @@ static void show_result(void);
 
 int main(int argc, char *argv[])
 {
-	pthread_t rid, sid;
+	pthread_t rid;
 
 	/* 解析命令行参数,初始化scaninfo结构 */
 	parse_scanpara(argc, argv, &info);
@@ -25,22 +25,10 @@ int main(int argc, char *argv[])
 		exit(-1);
 	}
 
-	/* 创建线程发送UDP数据包 */
-	if (pthread_create(&sid, NULL, sender, &info) != 0) {
-		perror("pthread_create error");
-		exit(-1);
-	}
-	if (pthread_detach(rid) != 0) {
-		perror("pthread_detach error");
-		exit(-1);
-	}
+	/* 发送UDP数据包 */
+	sender(&info);
 
-	/* 等待发送线程退出 */
-	if (pthread_join(sid, NULL) != 0) {
-		perror("pthread_detach error");
-		exit(-1);
-	}
-	printf("all packets are sent!\n");
+	printf("+++++++++++++++++++++++++++++\nall packets are sent!\n");
 	printf("wait %d seconds to exit!\n", info.wait);
 	sleep(info.wait);
 	show_result();
