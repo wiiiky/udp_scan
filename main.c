@@ -24,6 +24,10 @@ int main(int argc, char *argv[])
 		perror("pthread_create error");
 		exit(-1);
 	}
+	if (pthread_detach(rid) != 0) {
+		perror("pthread_detach error");
+		exit(-1);
+	}
 
 	/* 发送UDP数据包 */
 	sender(&info);

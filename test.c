@@ -16,6 +16,9 @@ int main(int argc, char *argv[])
 	int i;
 	pthread_t tid;
 
+	if (argc <= 1)
+		return;
+
 	for (i = 1; i < argc; i++) {
 		port = atoi(argv[i]);
 		if (port > 0) {

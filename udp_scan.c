@@ -1,6 +1,6 @@
 #include "udp_scan.h"
 
-/* 发送udp数据包的线程 */
+/* 发送udp数据包 */
 void sender(struct scaninfo *arg)
 {
 	if (arg == NULL)
@@ -10,10 +10,10 @@ void sender(struct scaninfo *arg)
 	unsigned short i, start, end;
 	int len, total;
 	struct sockaddr_in servaddr;
-	struct scaninfo *ip = (struct scaninfo *) arg;
+	struct scaninfo *info = (struct scaninfo *) arg;
 
-	start = ip->start;
-	end = ip->end;
+	start = info->start;
+	end = info->end;
 
 	if ((sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
 		perror("socket(AF_INET,SOCK_DGRAM,0) error");
@@ -21,25 +21,25 @@ void sender(struct scaninfo *arg)
 	}
 	memset(&servaddr, 0, sizeof(servaddr));
 	servaddr.sin_family = AF_INET;
-	memcpy(&servaddr.sin_addr, &ip->addr, sizeof(servaddr.sin_addr));
-	len = strlen(ip->data);
+	memcpy(&servaddr.sin_addr, &info->addr, sizeof(servaddr.sin_addr));
+	len = strlen(info->data);
 	/* 发送数据包,每次发送间隔5s */
 	setbuf(stdout, NULL);		/* 标准输出无缓冲 */
-	for (total = 1; total <= ip->attempts; total++) {
+	for (total = 1; total <= info->attempts; total++) {
 		printf("sending UDP packets(%d)", total);
 		for (i = start; i <= end; i++) {
 			servaddr.sin_port = htons(i);
 			if (sendto
-				(sockfd, ip->data, len, 0, (struct sockaddr *) &servaddr,
+				(sockfd, info->data, len, 0, (struct sockaddr *) &servaddr,
 				 sizeof(servaddr)) < 0) {
 				perror("sendto error");
 				return;
 			}
-			usleep(ip->interval);
+			usleep(info->interval);
 			printf(".");
 		}
 		printf("\ncomplete sending(%d)\n", total);
-		if (total == ip->attempts)
+		if (total == info->attempts)
 			break;
 		for (i = 1; i <= 20; i++) {
 			printf(".");
@@ -95,7 +95,7 @@ void *receiver(void *arg)
 		exit(-1);
 	}
 
-	memset(&raddr, 0, len);
+	/*memset(&raddr, 0, len); */
 	while (recv(sockfd, buf, BUFSIZE, 0) > 0) {
 		ip = (struct iphdr *) buf;	/* IP首部 */
 
@@ -136,8 +136,8 @@ static void help(void)
 	printf("\t\t\t[-i interval]\n");
 	printf("\t\t\t[-a attempts]\n");
 	printf("\t\t\t[-p payload]\n");
-	printf("\t\t\t[-h help]\n");
 	printf("\t\t\t[-w time_to_exit]\n");
+	printf("\t\t\t[-h help]\n");
 	exit(0);
 }
 

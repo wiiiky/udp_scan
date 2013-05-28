@@ -41,7 +41,7 @@ struct scaninfo {
 
 
 #define BUFSIZE	4096
-void sender(struct scaninfo *);	/* 发送UDP数据包线程 */
+void sender(struct scaninfo *);	/* 发送UDP数据包 */
 void *receiver(void *);			/* 接受ICMP数据包线程 */
 
 /* 解析命令参数 */
