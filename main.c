@@ -32,9 +32,6 @@ int main(int argc, char *argv[])
 	/* 发送UDP数据包 */
 	sender(&info);
 
-	printf("+++++++++++++++++++++++++++++\nall packets are sent!\n");
-	printf("wait %d seconds to exit!\n", info.wait);
-	sleep(info.wait);
 	show_result();
 
 	return 0;
@@ -47,6 +44,21 @@ static void show_result(void)
 	unsigned short i, j;
 
 	total = info.end - info.start + 1;
+
+	/* 打开的端口 */
+	printf("\nopen port:\t");
+	for (i = 0, j = 0; i < total; i++) {
+		if (info.status[i] == PORT_OPEN) {
+			j++;
+			printf("%d ", i + info.start);
+			if (j == 10) {
+				printf("\n\t\t");
+				j = 0;
+			}
+		}
+	}
+
+	/* 关闭的端口 */
 	printf("\nclosed port:\t");
 	for (i = 0, j = 0; i < total; i++) {
 		if (info.status[i] == PORT_CLOSED) {
@@ -58,9 +70,11 @@ static void show_result(void)
 			}
 		}
 	}
+
+	/* 未知 */
 	printf("\nunknown port:\t");
 	for (i = 0, j = 0; i < total; i++) {
-		if (info.status[i] != PORT_CLOSED) {
+		if (info.status[i] == PORT_UNKNOWN) {
 			j++;
 			printf("%d ", i + info.start);
 			if (j == 10) {

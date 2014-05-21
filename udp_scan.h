@@ -20,9 +20,9 @@
 #define _GNU_SOURCE
 #include <getopt.h>
 
-/* UDP扫描无法确认端口是否打开,只能确认端口关闭 */
-#define PORT_UNKNOWN 0
-#define PORT_CLOSED 1
+#define PORT_UNKNOWN 0			/* 什么都没有收到，这是默认值 */
+#define PORT_CLOSED 1			/* 受到ICMP端口不可达差错 */
+#define PORT_OPEN 2				/* 受到UDP数据包 */
 
 struct scaninfo {
 	unsigned short start;		/* 起始端口号 */

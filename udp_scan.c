@@ -1,4 +1,12 @@
 #include "udp_scan.h"
+#include <signal.h>
+
+
+/* 仅仅为了中断recvfrom系统调用 */
+static void alarmHanlder(int signo)
+{
+	alarm(1);
+}
 
 /* 发送udp数据包 */
 void sender(struct scaninfo *arg)
@@ -17,7 +25,7 @@ void sender(struct scaninfo *arg)
 
 	if ((sockfd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP)) < 0) {
 		perror("socket(AF_INET,SOCK_DGRAM,0) error");
-		return;
+		exit(-1);
 	}
 	memset(&servaddr, 0, sizeof(servaddr));
 	servaddr.sin_family = AF_INET;
@@ -29,11 +37,11 @@ void sender(struct scaninfo *arg)
 		printf("sending UDP packets(%d)", total);
 		for (i = start; i <= end; i++) {
 			servaddr.sin_port = htons(i);
-			if (sendto
-				(sockfd, info->data, len, 0, (struct sockaddr *) &servaddr,
-				 sizeof(servaddr)) < 0) {
+			if (sendto(sockfd, info->data, len, 0,
+					   (struct sockaddr *) &servaddr,
+					   sizeof(servaddr)) < 0) {
 				perror("sendto error");
-				return;
+				exit(-1);
 			}
 			usleep(info->interval);
 			printf(".");
@@ -47,6 +55,32 @@ void sender(struct scaninfo *arg)
 		}
 		printf("\n");
 	}
+
+	printf("+++++++++++++++++++++++++++++\nall packets are sent!\n");
+	printf("wait %d seconds to exit!\n", info->wait);
+
+	/* recvfrom会阻塞，通过alarm产生的信号中断 */
+	struct sigaction act;
+	act.sa_handler = alarmHanlder;
+	sigemptyset(&act.sa_mask);
+	act.sa_flags = SA_INTERRUPT;	/* 中断系统调用 */
+	sigaction(SIGALRM, &act, NULL);
+	alarm(info->wait);
+
+	char buf[1024];
+	struct sockaddr_in recvaddr;
+	socklen_t recvlen;
+	ssize_t n;
+	while ((n = recvfrom(sockfd, buf, 1024, 0,
+						 (struct sockaddr *) &recvaddr, &recvlen)) > 0) {
+		if (recvaddr.sin_addr.s_addr == servaddr.sin_addr.s_addr) {
+			unsigned short port = ntohs(recvaddr.sin_port);
+			info->status[port - info->start] = PORT_OPEN;
+		}
+	}
+
+	close(sockfd);
+
 	return;
 }
 
@@ -102,28 +136,31 @@ void *receiver(void *arg)
 		if (inet_ntop(AF_INET, &ip->saddr, straddr, 256) != 1)
 			strncpy(straddr, "unknown", 256);
 
-		if (ip->protocol != IPPROTO_ICMP)	/* 不是ICMP数据包 */
-			continue;
-		iplen = ip->ihl << 2;	/* IP首部长度 */
-		icmp = (struct icmphdr *) (buf + iplen);	/* ICMP首部 */
-		if (icmp->type != ICMP_DEST_UNREACH || icmp->code != ICMP_PORT_UNREACH) {	/* 不是ICMP端口不可达错误 */
-			printf("an unexpected packet from %s, type = %d, code = %d\n",
-				   straddr, icmp->type, icmp->code);
-			continue;
-		}
+		if (ip->protocol == IPPROTO_ICMP) {	/* 是ICMP数据包 */
+			iplen = ip->ihl << 2;	/* IP首部长度 */
+			icmp = (struct icmphdr *) (buf + iplen);	/* ICMP首部 */
+			if (icmp->type != ICMP_DEST_UNREACH || icmp->code != ICMP_PORT_UNREACH) {	/* 不是ICMP端口不可达错误 */
+				printf
+					("an unexpected packet from %s, type = %d, code = %d\n",
+					 straddr, icmp->type, icmp->code);
+				continue;
+			}
 
-		ip = (struct iphdr *) (buf + iplen + ICMP_LEN);	/* 负载的IP数据包 */
-		iplen = ip->ihl << 2;
-		udp = (struct udphdr *) ((char *) ip + iplen);	/* 负载的UDP首部 */
-		port = ntohs(udp->dest);
-		if (port < start || port > end) {
-			printf("an unexpected packet from %s, udp port = %d\n",
-				   straddr, port);
-			continue;
+			ip = (struct iphdr *) (buf + iplen + ICMP_LEN);	/* 负载的IP数据包 */
+			iplen = ip->ihl << 2;
+			udp = (struct udphdr *) ((char *) ip + iplen);	/* 负载的UDP首部 */
+			port = ntohs(udp->dest);
+			if (port < start || port > end) {
+				printf("an unexpected packet from %s, udp port = %d\n",
+					   straddr, port);
+				continue;
+			}
+			sip->status[port - start] = PORT_CLOSED;
 		}
-		sip->status[port - start] = PORT_CLOSED;
 	}
 
+	/* */
+	close(sockfd);
 	return NULL;
 }
 
@@ -149,6 +186,7 @@ void parse_scanpara(int argc, char *argv[], struct scaninfo *info)
 	/* 初始化scaninfo结构 */
 	info->attempts = 1;
 	info->interval = 500000;
+	/* 默认的负载数据是hello world */
 	strncpy(info->data, "hello world!", MAX_PAYLOAD);
 
 	int opt;
@@ -202,9 +240,13 @@ void parse_scanpara(int argc, char *argv[], struct scaninfo *info)
 		exit(-1);
 	}
 
-	if (info->wait == 0)
+	if (info->wait == 0) {
 		info->wait =
 			info->interval / 1000000.0 * (info->end - info->start + 1);
+		if (info->wait == 0) {	/* 端口跨度过小 */
+			info->wait = 1;
+		}
+	}
 	info->status =
 		(unsigned char *) malloc((info->end - info->start + 1) *
 								 sizeof(unsigned char));
